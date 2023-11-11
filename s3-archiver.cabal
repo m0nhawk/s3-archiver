@@ -39,14 +39,12 @@ library
     , amazonka-s3
     , base >=4.7 && <5
     , blaze-builder
+    , classy-prelude-yesod
     , conduit
-    , conduit-extra
-    , http-types
     , lens
     , resourcet
-    , scotty >=0.20.0 && <1.0
-    , text
-    , wai
+    , xml-conduit
+    , yesod
   default-language: Haskell2010
 
 executable s3-archiver-exe
@@ -64,15 +62,13 @@ executable s3-archiver-exe
     , amazonka-s3
     , base >=4.7 && <5
     , blaze-builder
+    , classy-prelude-yesod
     , conduit
-    , conduit-extra
-    , http-types
     , lens
     , resourcet
     , s3-archiver
-    , scotty >=0.20.0 && <1.0
-    , text
-    , wai
+    , xml-conduit
+    , yesod
   default-language: Haskell2010
 
 test-suite s3-archiver-test
@@ -91,13 +87,11 @@ test-suite s3-archiver-test
     , amazonka-s3
     , base >=4.7 && <5
     , blaze-builder
+    , classy-prelude-yesod
     , conduit
-    , conduit-extra
-    , http-types
     , lens
     , resourcet
     , s3-archiver
-    , scotty >=0.20.0 && <1.0
-    , text
-    , wai
+    , xml-conduit
+    , yesod
   default-language: Haskell2010

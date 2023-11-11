@@ -1,83 +1,56 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, TemplateHaskell,
+             TypeFamilies, NoImplicitPrelude, ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Main (main) where
 
+-- import Data.Aeson
+import qualified Amazonka
 import Amazonka.Data
-import Amazonka.S3 (BucketName)
 import Amazonka.S3.GetObject
 import Amazonka.S3.ListBuckets
 import Amazonka.S3.Types.Bucket
-import Blaze.ByteString.Builder (fromByteString, toByteString)
+import Amazonka.S3.Internal
+import Blaze.ByteString.Builder (fromByteString)
+import ClassyPrelude.Yesod
 import Control.Lens ((^.))
-import Control.Monad (void)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Resource (runResourceT)
-import Data.Aeson (FromJSON, ToJSON)
-import Data.Conduit
-import GHC.Generics
-import Network.Wai
-import qualified Amazonka
 import qualified Data.Conduit.Combinators as CC
-import qualified Data.Conduit.List as CL
-import qualified Data.Text.Lazy as LT
-import Web.Scotty
 
-newtype Files = Files {files :: [String]} deriving (Show, Generic)
-instance ToJSON Files
-instance FromJSON Files
+data App = App
 
--- bucketName :: BucketName
--- bucketName = "hat-revenue-ratio"
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+/stream StreamR GET
+/buckets BucketsR GET
+|]
 
-main :: IO ()
-main = do
-    env <- Amazonka.newEnv Amazonka.discover
-    scotty 3000 (app env)
+instance Yesod App
 
-app :: Amazonka.Env -> ScottyM ()
-app env = do
-    get "/" getAction
-    post "/" postAction
-    get "/buckets" $ do
-        allBuckets <- getAllBuckets env
-        text $ LT.pack (show allBuckets)
+getHomeR :: Handler Html
+getHomeR = defaultLayout [whamlet|Hello, World!|]
 
-    get "/bucket/:bucket/:file" $ do
-        b <- captureParam "bucket"
-        f <- captureParam "file"
-        text $ b <> " " <> f
+getStreamR :: Handler TypedContent
+getStreamR = do
+    runResourceT $ do
+        env <- liftIO $ Amazonka.newEnv Amazonka.discover
+        resp <- Amazonka.send env (newGetObject "hat-revenue-ratio" "huge")
+        let bodyProducer = resp ^. getObjectResponse_body
+        b <- liftIO $ runConduit $ bodyProducer `sinkBody` (CC.map fromByteString .| CC.foldMap id)
+        return $ TypedContent typeOctet $ toContent b
 
-    post "/stream" $ do
-        createStream <- jsonData :: ActionM Files
-        json createStream
+getBucketsR :: Handler Value
+getBucketsR = do
+    env <- liftIO $ Amazonka.newEnv Amazonka.discover
+    allBuckets <- getAllBuckets env
+    case allBuckets of
+        Nothing -> return $ object ["buckets" .= ("" :: Text)]
+        Just b -> return $ object ["buckets" .= bs]
+            where bs = map (fromBucketName . (^. bucket_name)) b
 
-    post "/stream-file" $ streamFile env
-
-bodyToStream :: ResponseBody -> StreamingBody
-bodyToStream b send flush = sinkBody b (CC.map fromByteString .| CC.mapM_ (liftIO . send) >> liftIO flush)
-
-streamFile :: Amazonka.Env -> ActionM ()
-streamFile env = do
-    resp <- runResourceT $ Amazonka.send env (newGetObject "hat-revenue-ratio" "first")
-    let body = bodyToStream $ resp ^. getObjectResponse_body
-    setHeader "Content-Type" "text/plain"
-    stream body
-
+getAllBuckets :: MonadIO m => Amazonka.Env -> m (Maybe [Bucket])
 getAllBuckets env = do
     resp <- liftIO $ runResourceT $ Amazonka.send env newListBuckets
     return $ resp ^. listBucketsResponse_buckets
 
-getAction :: ActionM ()
-getAction = do
-    text "This was a GET request!"
-
-postAction :: ActionM ()
-postAction = do
-    text "This was a POST request!"
-
-
-getFile env = do
-    resp <- runResourceT $ Amazonka.send env (newGetObject "hat-revenue-ratio" "first")
-    return $ resp ^. getObjectResponse_body
+main :: IO ()
+main = warp 3000 App

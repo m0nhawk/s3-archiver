@@ -21,18 +21,16 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- aeson
 - amazonka
 - amazonka-s3
+- blaze-builder
+- classy-prelude-yesod
 - conduit
-- scotty >= 0.20.0 && < 1.0
-- text
-- http-types
-- aeson
 - lens
 - resourcet
-- conduit-extra
-- wai
-- blaze-builder
+- xml-conduit
+- yesod
 
 ghc-options:
 - -Wall
